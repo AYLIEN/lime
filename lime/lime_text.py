@@ -62,8 +62,7 @@ class TextDomainMapper(explanation.DomainMapper):
         """
         if not text:
             return u''
-        text = (self.indexed_string.raw_string()
-                .encode('ascii', 'xmlcharrefreplace').decode())
+        text = self.indexed_string.raw_string()
         text = re.sub(r'[<>&]', '|', text)
         exp = [(self.indexed_string.word(x[0]),
                 self.indexed_string.string_position(x[0]),
