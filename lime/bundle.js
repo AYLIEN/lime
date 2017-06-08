@@ -124,8 +124,13 @@ var lime =
 	      var colors = ['#5F9EA0', this.colors_i(label)];
 	      var names = ['NOT ' + this.names[label], this.names[label]];
 	      if (this.names.length == 2) {
-	        colors = [this.colors_i(0), this.colors_i(1)];
-	        names = this.names;
+		if (label == 1){
+	          colors = [this.colors_i(0), this.colors_i(1)];
+	          names = this.names;
+		} else {
+		  colors = [this.colors_i(1), this.colors_i(0)];
+		  names = [this.names[1], this.names[0]];
+		}
 	      }
 	      var plot = new _bar_chart2.default(svg, exp, true, names, colors, true, 10);
 	      svg.style('height', plot.svg_height);
@@ -141,7 +146,11 @@ var lime =
 	      //let colors=['#5F9EA0', this.colors(this.exp['class'])];
 	      var colors = ['#5F9EA0', this.colors_i(label)];
 	      if (this.names.length == 2) {
-	        colors = [this.colors_i(0), this.colors_i(1)];
+	        if (label == 1) {
+	          colors = [this.colors_i(0), this.colors_i(1)];
+                } else {
+		  colors = [this.colors_i(1), this.colors_i(0)];
+		}
 	      }
 	      var word_lists = [[], []];
 	      var max_weight = -1;
