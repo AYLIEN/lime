@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 import itertools
 import json
 import re
+import time
 
 import numpy as np
 import scipy as sp
@@ -217,7 +218,10 @@ class LimeTextExplainer(object):
                          labels=(1,),
                          top_labels=None,
                          num_features=10,
-                         num_samples=5000,
+                         num_samples=None,
+                         runtime_sample=100,
+                         max_num_samples=20000,
+                         max_execution_time=3,
                          distance_metric='cosine',
                          model_regressor=None):
         """Generates explanations for a prediction.
@@ -248,12 +252,18 @@ class LimeTextExplainer(object):
             An Explanation object (see explanation.py) with the corresponding
             explanations.
         """
+
         indexed_string = IndexedString(text_instance, bow=self.bow,
                                        split_expression=self.split_expression)
         domain_mapper = TextDomainMapper(indexed_string)
-        data, yss, distances = self.__data_labels_distances(
-            indexed_string, classifier_fn, num_samples,
-            distance_metric=distance_metric)
+        data, yss, distances = self.__data_labels_distances(indexed_string,
+                                                            classifier_fn,
+                                                            num_samples,
+                                                            runtime_sample,
+                                                            max_num_samples,
+                                                            max_execution_time,
+                                                            distance_metric=distance_metric)
+
         if self.class_names is None:
             self.class_names = [str(x) for x in range(yss[0].shape[0])]
         ret_exp = explanation.Explanation(domain_mapper=domain_mapper,
@@ -276,7 +286,10 @@ class LimeTextExplainer(object):
     def __data_labels_distances(cls,
                                 indexed_string,
                                 classifier_fn,
-                                num_samples,
+                                num_samples = None,
+                                runtime_sample=100,
+                                max_num_samples=20000,
+                                max_execution_time=3,
                                 distance_metric='cosine'):
         """Generates a neighborhood around a prediction.
 
@@ -309,16 +322,48 @@ class LimeTextExplainer(object):
             return sklearn.metrics.pairwise.pairwise_distances(
                 x, x[0], metric=distance_metric).ravel() * 100
 
+        if not num_samples:
+            num_samples = max_num_samples
+        else:
+            runtime_sample = None
+            num_samples = num_samples
+
         doc_size = indexed_string.num_words()
         sample = np.random.randint(1, doc_size + 1, num_samples - 1)
         data = np.ones((num_samples, doc_size))
         data[0] = np.ones(doc_size)
         features_range = range(doc_size)
         inverse_data = [indexed_string.raw_string()]
-        for i, size in enumerate(sample, start=1):
-            inactive = np.random.choice(features_range, size, replace=False)
-            data[i, inactive] = 0
-            inverse_data.append(indexed_string.inverse_removing(inactive))
-        labels = classifier_fn(inverse_data)
-        distances = distance_fn(sp.sparse.csr_matrix(data))
+
+        if not runtime_sample:
+            for i, size in enumerate(sample, start=1):
+                inactive = np.random.choice(features_range, size, replace=False)
+                data[i, inactive] = 0
+                inverse_data.append(indexed_string.inverse_removing(inactive))
+            labels = classifier_fn(inverse_data)
+            distances = distance_fn(sp.sparse.csr_matrix(data))
+        else:
+            start = time.time()
+            for i, size in enumerate(sample[:runtime_sample], start=1):
+                inactive = np.random.choice(features_range, size, replace=False)
+                data[i, inactive] = 0
+                inverse_data.append(indexed_string.inverse_removing(inactive))
+
+            labels = classifier_fn(inverse_data)
+            distances = distance_fn(sp.sparse.csr_matrix(data[:i+1]))
+
+            remaining = min((runtime_sample * max_execution_time) / (time.time() - start), (max_num_samples - runtime_sample))
+            remaining = int(remaining)
+            inverse_data = []
+            if remaining:
+                for i, size in enumerate(sample[runtime_sample:(runtime_sample+remaining)], start=i+1):
+                    inactive = np.random.choice(features_range, size, replace=False)
+                    data[i, inactive] = 0
+                    inverse_data.append(indexed_string.inverse_removing(inactive))
+
+                data = data[:i+1]
+                labels = np.append(labels, classifier_fn(inverse_data), axis=0)
+                distances = np.append(distances, distance_fn(sp.sparse.csr_matrix(data[len(distances):])))
+            else:
+                data = data[:i + 1]
         return data, labels, distances
