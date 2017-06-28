@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='lime',
-      version='0.1.1.20',
+      version='0.1.1.21',
       description='Local Interpretable Model-Agnostic Explanations for machine learning classifiers',
       url='http://github.com/marcotcr/lime',
       author='Marco Tulio Ribeiro',
